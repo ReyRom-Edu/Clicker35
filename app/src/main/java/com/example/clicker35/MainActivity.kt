@@ -6,7 +6,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -25,37 +24,34 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.res.ResourcesCompat
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import com.example.clicker35.ui.theme.Clicker35Theme
 import kotlinx.coroutines.coroutineScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.random.Random
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,16 +64,14 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun ClickerGame() {
-    var count by rememberSaveable { mutableStateOf(0) }
-
+fun ClickerGame(vm: GameViewModel = viewModel()) {
     Clicker35Theme {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
             Box(
                 modifier = Modifier.padding(innerPadding).fillMaxSize()
             )
             {
-                Text("Натапано: $count",
+                Text("Натапано: ${vm.count}",
                     fontSize = 30.sp,
                     modifier = Modifier.align(Alignment.TopCenter)
                 )
@@ -86,18 +80,34 @@ fun ClickerGame() {
 
                 var position by remember { mutableStateOf(Offset.Zero) }
                 var buttonPosition by remember { mutableStateOf(Offset.Zero) }
+                var buttonSize by remember { mutableStateOf(IntSize.Zero) }
                 var isPressed by remember { mutableStateOf(false) }
                 val tapScaling by animateFloatAsState(
                     targetValue = if (isPressed) 0.95f else 1f,
                     animationSpec = tween(10)
                 )
+
+                LaunchedEffect(Unit) {
+                    while (true){
+                        delay(1000L)
+                        vm.count += vm.clicksPerSecond
+                        if (vm.clicksPerSecond > 0){
+                            val particle = getRandomParticleInCircle(
+                                buttonPosition.x + buttonSize.width/2,
+                                buttonPosition.y + buttonSize.height/2,
+                                buttonSize.height/2f)
+                            particles.add(particle)
+                        }
+                    }
+                }
+
                 Box(modifier = Modifier
                     .size(300.dp)
                     .clip(CircleShape)
-                    //.background(Color.Blue)
                     .align(Alignment.Center)
                     .onGloballyPositioned {
                         buttonPosition = Offset(it.positionInParent().x,it.positionInParent().y)
+                        buttonSize = it.size
                     }
                     .pointerInput(Unit){
                         coroutineScope {
@@ -105,7 +115,7 @@ fun ClickerGame() {
                                 awaitPointerEventScope {
                                     val down = awaitFirstDown()
                                     position = down.position
-                                    count++
+                                    vm.count++
                                     isPressed = true
                                     repeat(5){
                                         particles.add(Particle(
@@ -141,15 +151,16 @@ fun ClickerGame() {
                 }
                 ParticleAnimation(particles)
             }
-            BottomSheet()
+            BottomSheet(vm)
         }
     }
+    GameLifetimeObserver{ vm.saveData() }
 }
 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BottomSheet(){
+fun BottomSheet(vm: GameViewModel) {
     var isSheetOpen by remember { mutableStateOf(false) }
 
     if (isSheetOpen){
@@ -162,7 +173,7 @@ fun BottomSheet(){
             windowInsets = WindowInsets(0.dp)
         ) {
             Column {
-
+                UpgradesView(vm)
             }
         }
     }
@@ -177,6 +188,39 @@ fun BottomSheet(){
 
 }
 
+@Composable
+fun GameLifetimeObserver(onExit: ()->Unit){
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = object : DefaultLifecycleObserver{
+            override fun onStop(owner: LifecycleOwner) {
+                onExit()
+            }
+            override fun onDestroy(owner: LifecycleOwner) {
+                onExit()
+            }
+            override fun onPause(owner: LifecycleOwner) {
+                onExit()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+}
+
+
+@Composable
+fun UpgradesView(vm: GameViewModel) {
+    Column {
+        Text("Улучшения")
+        Button(onClick = {vm.clicksPerSecond++}) {
+            Text("Автоклик: ${vm.clicksPerSecond} кликов в секунду")
+        }
+    }
+}
 
 
 @Preview(showSystemUi = true)

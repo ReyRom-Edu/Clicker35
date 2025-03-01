@@ -17,6 +17,7 @@ import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.random.Random
 
 
@@ -74,9 +75,9 @@ data class Particle(
     var x: Float, var y: Float,
     var alpha: Float = 1f,
     var rotation: Float = Random.nextFloat() * 360,
+    val angle : Float = Random.nextFloat() * 2 * PI.toFloat(),
     val letter: String = ('A'..'Z').random().toString()
 ) {
-    private val angle = Random.nextFloat() * 2 * PI.toFloat()
     private val speed = Random.nextFloat() * 5 + 2
     private val speedX = cos(angle) * speed
     private val speedY = sin(angle) * speed
@@ -95,4 +96,14 @@ data class Particle(
         lifetime -= 0.02f
         return lifetime > 0
     }
+}
+
+fun getRandomParticleInCircle(centerX:Float, centerY: Float, radius: Float) : Particle{
+    val theta = Random.nextFloat() * 2 * PI.toFloat()
+    val r = sqrt(Random.nextFloat()) * radius
+
+    val x = centerX + r * cos(theta)
+    val y = centerY + r * sin(theta)
+
+    return Particle(x, y, angle = theta)
 }
