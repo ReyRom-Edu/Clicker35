@@ -1,24 +1,30 @@
 package com.example.clicker35
 
 import android.os.Bundle
+import android.util.EventLogTags.Description
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -35,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -42,6 +49,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -71,10 +79,25 @@ fun ClickerGame(vm: GameViewModel = viewModel()) {
                 modifier = Modifier.padding(innerPadding).fillMaxSize()
             )
             {
-                Text("Натапано: ${vm.count}",
-                    fontSize = 30.sp,
+                Column(horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceAround,
                     modifier = Modifier.align(Alignment.TopCenter)
-                )
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.primary)
+                        .height(100.dp)
+                ) {
+                    Text("Уровень безумия:",
+                        textAlign = TextAlign.Center,
+                        fontSize = 30.sp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Text(vm.count.toString(),
+                        textAlign = TextAlign.Center,
+                        fontSize = 30.sp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+
 
                 val particles = remember { mutableStateListOf<Particle>() }
 
@@ -115,7 +138,7 @@ fun ClickerGame(vm: GameViewModel = viewModel()) {
                                 awaitPointerEventScope {
                                     val down = awaitFirstDown()
                                     position = down.position
-                                    vm.count++
+                                    vm.count += vm.multiplier.toInt()
                                     isPressed = true
                                     repeat(5){
                                         particles.add(Particle(
@@ -180,9 +203,11 @@ fun BottomSheet(vm: GameViewModel) {
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter){
         Button(
-            onClick = {isSheetOpen=true}
+            onClick = {isSheetOpen=true},
+            shape = RectangleShape,
+            modifier = Modifier.fillMaxWidth().height(100.dp)
         ) {
-            Text("Меню")
+            Text("Меню", fontSize = 28.sp)
         }
     }
 
@@ -214,10 +239,26 @@ fun GameLifetimeObserver(onExit: ()->Unit){
 
 @Composable
 fun UpgradesView(vm: GameViewModel) {
+    var invalidate by remember { mutableStateOf(false) }
     Column {
-        Text("Улучшения")
-        Button(onClick = {vm.clicksPerSecond++}) {
-            Text("Автоклик: ${vm.clicksPerSecond} кликов в секунду")
+        Text("Улучшения", fontSize = 25.sp, modifier = Modifier.padding(horizontal = 5.dp, vertical = 3.dp))
+        invalidate.let {
+            vm.upgrades.forEach{ u ->
+                UpgradeButton(u.title, u.description) {
+                    vm.buyUpgrade(u)
+                    invalidate = !invalidate
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun UpgradeButton(title:String, description: String, onClick: ()-> Unit){
+    Button(onClick = onClick, shape = RectangleShape, modifier = Modifier.fillMaxWidth().padding(3.dp)) {
+        Column (horizontalAlignment = Alignment.Start, modifier = Modifier.fillMaxWidth()) {
+            Text(title)
+            Text(description)
         }
     }
 }
