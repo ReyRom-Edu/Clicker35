@@ -1,7 +1,6 @@
 package com.example.clicker35
 
 import android.os.Bundle
-import android.util.EventLogTags.Description
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -22,6 +21,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -60,6 +60,7 @@ import com.example.clicker35.ui.theme.Clicker35Theme
 import kotlinx.coroutines.coroutineScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
+import java.math.BigDecimal
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -91,7 +92,7 @@ fun ClickerGame(vm: GameViewModel = viewModel()) {
                         fontSize = 30.sp,
                         color = MaterialTheme.colorScheme.onPrimary
                     )
-                    Text(vm.count.toString(),
+                    Text(vm.count.formatNumber(),
                         textAlign = TextAlign.Center,
                         fontSize = 30.sp,
                         color = MaterialTheme.colorScheme.onPrimary
@@ -109,12 +110,34 @@ fun ClickerGame(vm: GameViewModel = viewModel()) {
                     targetValue = if (isPressed) 0.95f else 1f,
                     animationSpec = tween(10)
                 )
+                var showDialog by remember { mutableStateOf(false) }
+                var offlineEarnings by remember { mutableStateOf(BigDecimal(0)) }
+
+                LaunchedEffect(Unit) {
+                    offlineEarnings = vm.calculateOfflineEarnings().await()
+                    if (offlineEarnings > BigDecimal(0)){
+                        showDialog = true
+                    }
+                }
+
+                if(showDialog){
+                    AlertDialog(
+                        onDismissRequest = { showDialog=false },
+                        title = { Text("C возвращением!") },
+                        text = { Text("Последователи заработали $offlineEarnings безумия пока отсутствовали") },
+                        confirmButton = {
+                            Button(onClick = {showDialog = false}) {
+                                Text("Ok")
+                            }
+                        }
+                    )
+                }
 
                 LaunchedEffect(Unit) {
                     while (true){
                         delay(1000L)
                         vm.count += vm.clicksPerSecond
-                        if (vm.clicksPerSecond > 0){
+                        if (vm.clicksPerSecond > BigDecimal(0)){
                             val particle = getRandomParticleInCircle(
                                 buttonPosition.x + buttonSize.width/2,
                                 buttonPosition.y + buttonSize.height/2,
@@ -138,7 +161,7 @@ fun ClickerGame(vm: GameViewModel = viewModel()) {
                                 awaitPointerEventScope {
                                     val down = awaitFirstDown()
                                     position = down.position
-                                    vm.count += vm.multiplier.toInt()
+                                    vm.count += vm.multiplier
                                     isPressed = true
                                     repeat(5){
                                         particles.add(Particle(

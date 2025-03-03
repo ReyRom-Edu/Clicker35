@@ -8,7 +8,11 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Contextual
 import kotlinx.serialization.Polymorphic
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -31,24 +35,32 @@ class GameViewModel(app: Application): AndroidViewModel(app) {
             else{
                 upgrades.add(ClickMultiplierUpgrade(
                     0,
-                    100,
+                    BigDecimal(100),
                     1.5,
                     "Сила безумия",
-                    1.0)
+                    BigDecimal(1.0))
+                    {
+                        u->"Множитель кликов ур.${u.level} - x%.2f".format(u.multiplier)
+                    }
                 )
                 upgrades.add(AutoClickUpgrade(
                     0,
-                    100,
+                    BigDecimal(100),
                     1.7,
                     "Последователи культа",
-                    0)
+                    BigDecimal(0))
+                    {
+                        u->"Автоклики ур.${u.level} - x%.2f".format(u.clicksPerSecond)
+                    }
                 )
+
                 upgrades.add(OfflineEarningsUpgrade(
                     0,
-                    100,
+                    BigDecimal(100),
                     1.2,
                     "Храм Древних",
-                    0)
+                    BigDecimal(0))
+                    {u->"Лимит оффлайн дохода ур.${u.level} - ${u.offlineCap}"}
                 )
             }
 
@@ -60,24 +72,17 @@ class GameViewModel(app: Application): AndroidViewModel(app) {
                 }
             }
 
-            val currentTime = System.currentTimeMillis()
-            val exitTime = storage.getExitTime()
 
-            val deltaSec = (currentTime - exitTime)/1000
-
-            if (offlineCap > 0){
-                count += ((deltaSec * clicksPerSecond) % offlineCap).toInt()
-            }
         }
     }
 
-    var count by mutableStateOf(0)
+    var count by mutableStateOf(BigDecimal(0))
 
-    var clicksPerSecond by mutableStateOf(0)
+    var clicksPerSecond by mutableStateOf(BigDecimal(0))
 
-    var multiplier by mutableStateOf(0.0)
+    var multiplier by mutableStateOf(BigDecimal(0))
 
-    var offlineCap by mutableStateOf(0)
+    var offlineCap by mutableStateOf(BigDecimal(0))
 
     val upgrades = mutableStateListOf<Upgrade>()
 
@@ -88,6 +93,21 @@ class GameViewModel(app: Application): AndroidViewModel(app) {
             is AutoClickUpgrade -> clicksPerSecond = upgrade.clicksPerSecond
             is ClickMultiplierUpgrade -> multiplier = upgrade.multiplier
             is OfflineEarningsUpgrade -> offlineCap = upgrade.offlineCap
+        }
+    }
+
+    suspend fun calculateOfflineEarnings(): Deferred<BigDecimal>{
+        return viewModelScope.async {
+            val currentTime = System.currentTimeMillis()
+            val exitTime = storage.getExitTime()
+
+            val deltaSec = (currentTime - exitTime)/1000
+            var earnings = BigDecimal(0)
+            if (offlineCap > BigDecimal(0)){
+                earnings = (BigDecimal(deltaSec) * clicksPerSecond) % offlineCap
+                count += earnings
+            }
+            earnings
         }
     }
 
@@ -105,7 +125,7 @@ class GameViewModel(app: Application): AndroidViewModel(app) {
 @Polymorphic
 sealed class Upgrade{
     abstract var level: Int
-    abstract var cost: Int
+    abstract var cost: BigDecimal
     abstract val growthFactor: Double
     abstract val title: String
     abstract val description: String
@@ -114,8 +134,8 @@ sealed class Upgrade{
         level++
         cost = calculateNextCost()
     }
-    open fun calculateNextCost(): Int{
-        return (cost * (growthFactor.pow(level)).toInt())
+    open fun calculateNextCost(): BigDecimal{
+        return cost * BigDecimal(growthFactor.pow(level))
     }
 }
 
@@ -123,53 +143,63 @@ sealed class Upgrade{
 @SerialName("ClickMultiplierUpgrade")
 class ClickMultiplierUpgrade(
     override var level: Int,
-    override var cost: Int,
+    @Contextual
+    override var cost: BigDecimal,
     override val growthFactor: Double,
     override val title: String,
-    var multiplier : Double
+    @Contextual
+    var multiplier: BigDecimal,
+    @SerialName("-")
+    val descriptionString: (ClickMultiplierUpgrade) -> String
 ):Upgrade() {
     override val description: String
-        get() = "Множитель кликов ур.$level - x%.2f".format(multiplier)
+        get() = descriptionString(this)
 
 
     override fun upgrade(){
         super.upgrade()
-        multiplier *= 1.2
+        multiplier *= BigDecimal(1.2)
     }
 }
 @Serializable
 @SerialName("AutoClickUpgrade")
 class AutoClickUpgrade(
     override var level: Int,
-    override var cost: Int,
+    @Contextual
+    override var cost: BigDecimal,
     override val growthFactor: Double,
     override val title: String,
-    var clicksPerSecond : Int
+    @Contextual
+    var clicksPerSecond : BigDecimal,
+    val descriptionString: (AutoClickUpgrade) -> String
 ):Upgrade() {
     override val description: String
-        get() = "Автоклик ур.$level - $clicksPerSecond к/с"
+        get() = descriptionString(this)
 
 
     override fun upgrade(){
         super.upgrade()
-        clicksPerSecond = (clicksPerSecond * 1.05).toInt() + 1
+        clicksPerSecond = clicksPerSecond * BigDecimal(1.05) + BigDecimal(1)
     }
 }
 @Serializable
 @SerialName("OfflineEarningsUpgrade")
 class OfflineEarningsUpgrade(
     override var level: Int,
-    override var cost: Int,
+    @Contextual
+    override var cost: BigDecimal,
     override val growthFactor: Double,
     override val title: String,
-    var offlineCap : Int
+    @Contextual
+    var offlineCap : BigDecimal,
+    val descriptionString: (OfflineEarningsUpgrade) -> String
 ):Upgrade() {
     override val description: String
-        get() = "Лимит оффлайн дохода ур.$level - $offlineCap"
+        get() = descriptionString(this)
 
 
     override fun upgrade(){
         super.upgrade()
-        offlineCap = (offlineCap * 1.2).toInt() + 10
+        offlineCap = offlineCap * BigDecimal(1.2) + BigDecimal(10)
     }
 }

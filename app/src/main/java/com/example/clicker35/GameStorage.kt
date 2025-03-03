@@ -13,23 +13,24 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
+import java.math.BigDecimal
 
 private val Context.dataStore by preferencesDataStore("game_prefs")
 
 class GameStorage(private val context: Context) {
-    private val SCORE_KEY = intPreferencesKey("score")
+    private val SCORE_KEY = stringPreferencesKey("score")
     private val UPGRADES_KEY = stringPreferencesKey("upgrades")
     private val EXIT_TIME_KEY = stringPreferencesKey("exit_time")
 
-    suspend fun saveScore(score: Int){
+    suspend fun saveScore(score: BigDecimal){
         context.dataStore.edit { prfs ->
-            prfs[SCORE_KEY] = score
+            prfs[SCORE_KEY] = score.toString()
         }
     }
 
-    suspend fun getScore() : Int{
+    suspend fun getScore() : BigDecimal{
         return context.dataStore.data.map { prfs->
-            prfs[SCORE_KEY] ?: 0
+            prfs[SCORE_KEY]?.toBigDecimalOrNull() ?: BigDecimal(0)
         }.first()
     }
 
@@ -39,6 +40,7 @@ class GameStorage(private val context: Context) {
             subclass(AutoClickUpgrade::class, AutoClickUpgrade.serializer())
             subclass(OfflineEarningsUpgrade::class, OfflineEarningsUpgrade.serializer())
         }
+        contextual(BigDecimal::class, BigDecimalSerializer)
     }
 
     private val json = Json {
