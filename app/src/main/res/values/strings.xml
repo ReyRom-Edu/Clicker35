@@ -1,3 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Clicker35</string>
+    <string name="app_name">Cthulhu Clicker</string>
+
+    <string name="upgrades">Upgrades</string>
+    <string name="score">Madness level</string>
+
+
+    <plurals name="cultist">
+        <item quantity="one">%d cultist</item>
+        <item quantity="other">%d cultists</item>
+    </plurals>
 </resources>

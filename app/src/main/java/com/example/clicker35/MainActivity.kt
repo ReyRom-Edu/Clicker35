@@ -13,6 +13,8 @@ import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -27,6 +30,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -41,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -48,7 +56,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
@@ -74,20 +85,24 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun ClickerGame(vm: GameViewModel = viewModel()) {
-    Clicker35Theme {
+    Clicker35Theme(darkTheme = vm.isDarkTheme) {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
             Box(
-                modifier = Modifier.padding(innerPadding).fillMaxSize()
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .fillMaxSize()
             )
             {
                 Column(horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.SpaceAround,
-                    modifier = Modifier.align(Alignment.TopCenter)
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
                         .fillMaxWidth()
                         .background(MaterialTheme.colorScheme.primary)
                         .height(100.dp)
                 ) {
-                    Text("Уровень безумия:",
+                    Text(
+                        stringResource(R.string.score),
                         textAlign = TextAlign.Center,
                         fontSize = 30.sp,
                         color = MaterialTheme.colorScheme.onPrimary
@@ -124,7 +139,7 @@ fun ClickerGame(vm: GameViewModel = viewModel()) {
                     AlertDialog(
                         onDismissRequest = { showDialog=false },
                         title = { Text("C возвращением!") },
-                        text = { Text("Последователи заработали $offlineEarnings безумия пока отсутствовали") },
+                        text = { Text("Последователи заработали ${offlineEarnings.formatNumber()} безумия пока отсутствовали") },
                         confirmButton = {
                             Button(onClick = {showDialog = false}) {
                                 Text("Ok")
@@ -152,27 +167,29 @@ fun ClickerGame(vm: GameViewModel = viewModel()) {
                     .clip(CircleShape)
                     .align(Alignment.Center)
                     .onGloballyPositioned {
-                        buttonPosition = Offset(it.positionInParent().x,it.positionInParent().y)
+                        buttonPosition = Offset(it.positionInParent().x, it.positionInParent().y)
                         buttonSize = it.size
                     }
-                    .pointerInput(Unit){
+                    .pointerInput(Unit) {
                         coroutineScope {
-                            while (true){
+                            while (true) {
                                 awaitPointerEventScope {
                                     val down = awaitFirstDown()
                                     position = down.position
                                     vm.count += vm.multiplier
                                     isPressed = true
-                                    repeat(5){
-                                        particles.add(Particle(
-                                            buttonPosition.x + position.x,
-                                            buttonPosition.y + position.y,
-                                        ))
+                                    repeat(5) {
+                                        particles.add(
+                                            Particle(
+                                                buttonPosition.x + position.x,
+                                                buttonPosition.y + position.y,
+                                            )
+                                        )
                                     }
                                     down.consume()
 
                                     val up = waitForUpOrCancellation()
-                                    if (up != null){
+                                    if (up != null) {
                                         isPressed = false
                                     }
                                 }
@@ -188,7 +205,8 @@ fun ClickerGame(vm: GameViewModel = viewModel()) {
                     )
                     Image(
                         painter = painterResource(id = R.drawable.cthulhu),
-                        modifier = Modifier.fillMaxSize(0.7f)
+                        modifier = Modifier
+                            .fillMaxSize(0.7f)
                             .align(Alignment.Center)
                             .graphicsLayer(scaleX = tapScaling, scaleY = tapScaling),
                         contentDescription = "Cthulhu",
@@ -209,6 +227,9 @@ fun ClickerGame(vm: GameViewModel = viewModel()) {
 fun BottomSheet(vm: GameViewModel) {
     var isSheetOpen by remember { mutableStateOf(false) }
 
+    val tabs = listOf("Улучшения", "Магазин", "Настройки")
+    var selectedTabIndex by remember { mutableStateOf(0) }
+
     if (isSheetOpen){
         ModalBottomSheet(
             onDismissRequest = { isSheetOpen = false },
@@ -219,7 +240,24 @@ fun BottomSheet(vm: GameViewModel) {
             windowInsets = WindowInsets(0.dp)
         ) {
             Column {
-                UpgradesView(vm)
+                TabRow(
+                    selectedTabIndex = selectedTabIndex
+                ) {
+                    tabs.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedTabIndex == index,
+                            onClick = {selectedTabIndex = index}
+                        ) {
+                            Text(title)
+                        }
+                    }
+                }
+                when(selectedTabIndex){
+                    0 -> UpgradesView(vm)
+                    1 -> ShopView()
+                    2 -> SettingsView(vm)
+                }
+                
             }
         }
     }
@@ -228,12 +266,42 @@ fun BottomSheet(vm: GameViewModel) {
         Button(
             onClick = {isSheetOpen=true},
             shape = RectangleShape,
-            modifier = Modifier.fillMaxWidth().height(100.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(100.dp)
         ) {
             Text("Меню", fontSize = 28.sp)
         }
     }
 
+}
+
+@Composable
+fun SettingsView(viewModel: GameViewModel) {
+    var volume by remember { mutableStateOf(0f) }
+
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 20.dp) ) {
+            Text("Громкость")
+            Slider(value = volume,
+                onValueChange = {volume = it},
+                steps = 3,
+                modifier = Modifier.fillMaxWidth().padding(20.dp))
+        }
+        Row(verticalAlignment = Alignment.CenterVertically ,
+            modifier = Modifier.padding(horizontal = 20.dp)) {
+            Text("Темная тема")
+            Spacer(Modifier.width(10.dp))
+            Switch(checked = viewModel.isDarkTheme,
+                onCheckedChange = {viewModel.isDarkTheme = !viewModel.isDarkTheme })
+        }
+    }
+}
+
+@Composable
+fun ShopView() {
+    
 }
 
 @Composable
@@ -264,10 +332,10 @@ fun GameLifetimeObserver(onExit: ()->Unit){
 fun UpgradesView(vm: GameViewModel) {
     var invalidate by remember { mutableStateOf(false) }
     Column {
-        Text("Улучшения", fontSize = 25.sp, modifier = Modifier.padding(horizontal = 5.dp, vertical = 3.dp))
+        //Text("Улучшения", fontSize = 25.sp, modifier = Modifier.padding(horizontal = 5.dp, vertical = 3.dp))
         invalidate.let {
             vm.upgrades.forEach{ u ->
-                UpgradeButton(u.title, u.description) {
+                UpgradeButton(u.title, u.description, u.cost.formatNumber()) {
                     vm.buyUpgrade(u)
                     invalidate = !invalidate
                 }
@@ -277,11 +345,18 @@ fun UpgradesView(vm: GameViewModel) {
 }
 
 @Composable
-fun UpgradeButton(title:String, description: String, onClick: ()-> Unit){
-    Button(onClick = onClick, shape = RectangleShape, modifier = Modifier.fillMaxWidth().padding(3.dp)) {
-        Column (horizontalAlignment = Alignment.Start, modifier = Modifier.fillMaxWidth()) {
-            Text(title)
-            Text(description)
+fun UpgradeButton(title:String, description: String, cost:String, onClick: ()-> Unit){
+    Button(onClick = onClick, shape = RectangleShape, modifier = Modifier
+        .fillMaxWidth()
+        .padding(3.dp)) {
+        Box {
+            Column(horizontalAlignment = Alignment.Start,
+                modifier = Modifier.fillMaxWidth().align(Alignment.CenterStart)
+            ) {
+                Text(title)
+                Text(description)
+            }
+            Text(cost, modifier = Modifier.align(Alignment.CenterEnd))
         }
     }
 }
@@ -291,4 +366,5 @@ fun UpgradeButton(title:String, description: String, onClick: ()-> Unit){
 @Composable
 fun GreetingPreview() {
     ClickerGame()
+ //Image(bitmap = ImageBitmap.imageResource(R.drawable.cthulhu_back), null)
 }
